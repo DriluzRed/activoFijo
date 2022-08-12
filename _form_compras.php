@@ -42,7 +42,7 @@ if ($forModal == 'true') {
 <div class="activo-fijo-form">
 
     <?php $form = ActiveForm::begin($actvFormOptions); ?>
-
+<div class = "form-original">
     <?php
     $tiene_factura_compra = isset($model->compra);
     $action_id = Yii::$app->controller->action->id;
@@ -231,6 +231,7 @@ if ($forModal == 'true') {
             
         </table>
         </div>
+        
             <hr/>
             <?php
             $ultimaClave = $clave;
@@ -238,15 +239,19 @@ if ($forModal == 'true') {
     } catch (Exception $e) {
         throw $e;
         FlashMessageHelpsers::createWarningMessage($e->getMessage());
-    }
-
+    } ?>
+   </div>
+    <?php
+    
+    echo Html::beginTag('div', ['id' => 'ponerleuno']);
     $boton_guardar_class = "";
     if (Yii::$app->controller->action->id == "create") {
         $boton_guardar_class = 'btn btn-success';
     } else {
         $boton_guardar_class = 'btn btn-primary';
     }
-
+    
+    echo Html::endTag('div');
     echo Html::beginTag('div', ['class' => 'form-group text-right btn-toolbar']);
     $submitBtnOptions = ['data' => ['disabled-text' => 'Guardando...'], 'class' => $boton_guardar_class];
     echo Html::submitButton('Guardar',['class' => $boton_guardar_class, 'id'=>'guardar' ,'onclick' => 'true']);
@@ -265,7 +270,7 @@ if ($forModal == 'true') {
     echo Html::tag('br/');
     echo Html::endTag('div');
     ?>
-
+    
     <?php ActiveForm::end(); ?>
 
     <?php
@@ -316,14 +321,24 @@ $("#actfijo-modal-form").on("beforeSubmit", function (e) {
         form.serialize()
         )
         .done(function (data) {
-            $('.modal-body', modal).html("");
-            $('.modal-body', modal).html(form);
+            
+           // $('.modal-body', modal).html("");
+            //$('.modal-body', modal).html(data);
+            let htmlElements = $('.form-original').html();
+            console.log(htmlElements);
+            let htmlponerleuno = $("#ponerleuno").html();
+            //console.log(htmlponerleuno);
+            htmlponerleuno += htmlElements 
+            $("#ponerleuno").html(htmlponerleuno);
+            //console.log(htmlponerleuno);
             $("#actfijo-modal-form").attr('action', original);
             $('#modal').trigger('change');
+            
         });
+        document.write
         return false;
     }
-/*     else{
+    /*else{
         // alert("nuevo");
         // alert(form.attr("action"));
         $.get(
@@ -336,7 +351,7 @@ $("#actfijo-modal-form").on("beforeSubmit", function (e) {
             $('#modal').trigger('change');
         });
         return false;
-    } */
+    }*/
 }).on("submit", function (e) {
     e.preventDefault();
     e.stopImmediatePropagation();
