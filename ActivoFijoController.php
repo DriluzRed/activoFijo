@@ -23,7 +23,9 @@ use backend\modules\contabilidad\models\Venta;
 use backend\modules\contabilidad\models\VentaIvaCuentaUsada;
 use common\helpers\FlashMessageHelpsers;
 use kartik\form\ActiveForm;
+use backend\helpers\ExcelHelpers;
 use PHPExcel_Shared_Date;
+use PHPExcel_IOFactory;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use Yii;
 use yii\base\Exception;
@@ -34,6 +36,7 @@ use yii\web\ForbiddenHttpException;
 use yii\web\NotFoundHttpException;
 use yii\web\Response;
 use yii\web\UploadedFile;
+use common\helpers\DateTimeHelpers;
 
 /**
  * ActivoFijoController implements the CRUD actions for ActivoFijo model.
@@ -471,7 +474,7 @@ class ActivoFijoController extends BaseController
     protected
     function findModel($id)
     {
-        if (($model = ActivoFijo::find()->where(["id"=>$id])->one()) !== null) {
+        if (($model = ActivoFijo::find()->where(["id" => $id])->one()) !== null) {
             return $model;
         }
 
@@ -554,28 +557,28 @@ class ActivoFijoController extends BaseController
      *  Manejador de activos fijos para la vistas create y update de compras
      *  no elimina Activos Fijos de la base de datos, que a cargo del controller de compras
      */
-    public function actionManejarDesdeFacturaCompra($formodal,$plantilla_id, $costo_adquisicion = "", $fecha_factura = null, $submit = false, $moneda_id = null,$btn=null,$activo_nro = null)
+    public function actionManejarDesdeFacturaCompra($formodal, $plantilla_id, $costo_adquisicion = "", $fecha_factura = null, $submit = false, $moneda_id = null, $btn = null, $activo_nro = null)
     {
         $plantilla = PlantillaCompraventa::findOne((int)$plantilla_id);
-       $activosFijos = Yii::$app->session->get("activos_fijos_compra");
-       $activoFijoAtributo = Yii::$app->session->get("activos_fijos_atributos_compra");
+        $activosFijos = Yii::$app->session->get("activos_fijos_compra");
+        $activoFijoAtributo = Yii::$app->session->get("activos_fijos_atributos_compra");
 
-        if(!isset($activosFijos)){
-            $activosFijos =[];
+        if (!isset($activosFijos)) {
+            $activosFijos = [];
         }
-        if(!isset($activosFijos[$plantilla_id])){
-            $activosFijos[$plantilla_id] =[];
+        if (!isset($activosFijos[$plantilla_id])) {
+            $activosFijos[$plantilla_id] = [];
         }
-        if(!isset($activoFijoAtributo)){
-            $activoFijoAtributo =[];
+        if (!isset($activoFijoAtributo)) {
+            $activoFijoAtributo = [];
         }
-        if(!isset($activoFijoAtributo[$plantilla_id])){
-            $activoFijoAtributo[$plantilla_id] =[];
+        if (!isset($activoFijoAtributo[$plantilla_id])) {
+            $activoFijoAtributo[$plantilla_id] = [];
         }
         $cantidadActivos = count($activosFijos[$plantilla_id]);
-       // si no existen datos en la base de datos creamos uno vacio
-       if($cantidadActivos == 0 and $btn==null and $submit == false){
-        //    echo "primera fila";
+        // si no existen datos en la base de datos creamos uno vacio
+        if ($cantidadActivos == 0 and $btn == null and $submit == false) {
+            //    echo "primera fila";
             $activoNuevo = new ActivoFijo();
             $activoNuevo->loadDefaultValues();
             // $activoNuevo->nombre = "desde vacio";
@@ -585,39 +588,39 @@ class ActivoFijoController extends BaseController
             $activoNuevo->fecha_adquisicion = $fecha_factura;
             $activoNuevo->costo_adquisicion = $costo_adquisicion;
             $activoNuevo->valor_fiscal_neto = $costo_adquisicion;
-            $activoNuevo->vida_util_fiscal = $activoNuevo->vida_util_fiscal?? $activoNuevo->activoFijoTipo->vida_util;
-            $activoNuevo->vida_util_contable = $activoNuevo->vida_util_contable?? $activoNuevo->activoFijoTipo->vida_util;
-            $activoNuevo->vida_util_restante = $activoNuevo->vida_util_restante?? $activoNuevo->activoFijoTipo->vida_util;
+            $activoNuevo->vida_util_fiscal = $activoNuevo->vida_util_fiscal ?? $activoNuevo->activoFijoTipo->vida_util;
+            $activoNuevo->vida_util_contable = $activoNuevo->vida_util_contable ?? $activoNuevo->activoFijoTipo->vida_util;
+            $activoNuevo->vida_util_restante = $activoNuevo->vida_util_restante ?? $activoNuevo->activoFijoTipo->vida_util;
             $activoNuevo->cuenta_id = PlantillaCompraventa::getFirstCuentaPrincipal($plantilla->id)->p_c_gravada_id;
             $activosFijos[$plantilla_id][0] = $activoNuevo;
-            Yii::$app->session->set('activos_fijos_compra',$activosFijos);
-            Yii::$app->session->set('activos_fijos_atributos_compra',$activoFijoAtributo);
+            Yii::$app->session->set('activos_fijos_compra', $activosFijos);
+            Yii::$app->session->set('activos_fijos_atributos_compra', $activoFijoAtributo);
             goto retorno;
-       }
-       //BOTON ELIMINAR
-       if($btn=='eliminar' and $activo_nro != null and isset($activosFijos[$plantilla_id][$activo_nro])){
+        }
+        //BOTON ELIMINAR
+        if ($btn == 'eliminar' and $activo_nro != null and isset($activosFijos[$plantilla_id][$activo_nro])) {
             if (isset($activoFijoAttributo[$plantilla_id][$activo_nro])) {
-                    foreach($activoFijoAtributo[$plantilla_id][$activo_nro] as $nro_atributo => $_attributo){ 
-                        $activoFijoAtributo[$plantilla_id][$activo_nro][$nro_atributo]->delete();
-                        $activoFijoAtributo[$plantilla_id][$activo_nro][$nro_atributo] = null;
-                        unset($activoFijoAtributo[$plantilla_id][$activo_nro][$nro_atributo]);
-                    }
-                    unset($activoFijoAtributo[$plantilla_id][$activo_nro]);
+                foreach ($activoFijoAtributo[$plantilla_id][$activo_nro] as $nro_atributo => $_attributo) {
+                    $activoFijoAtributo[$plantilla_id][$activo_nro][$nro_atributo]->delete();
+                    $activoFijoAtributo[$plantilla_id][$activo_nro][$nro_atributo] = null;
+                    unset($activoFijoAtributo[$plantilla_id][$activo_nro][$nro_atributo]);
                 }
-                unset($activosFijos[$plantilla_id][$activo_nro]);
-                Yii::$app->session->set('activos_fijos_compra',$activosFijos);
-                Yii::$app->session->set('activos_fijos_atributos_compra',$activoFijoAtributo);
-                goto retorno;
-       }
+                unset($activoFijoAtributo[$plantilla_id][$activo_nro]);
+            }
+            unset($activosFijos[$plantilla_id][$activo_nro]);
+            Yii::$app->session->set('activos_fijos_compra', $activosFijos);
+            Yii::$app->session->set('activos_fijos_atributos_compra', $activoFijoAtributo);
+            goto retorno;
+        }
         Yii::$app->response->format = Response::FORMAT_JSON;
-        
+
         $get = Yii::$app->request->get();
         $agrego = false;
         if (Yii::$app->request->isAjax && isset($get['ActivoFijo'])) {
-            
+
             //BOTON GUARDAR
-            foreach($get['ActivoFijo'] as $nro_activo => $activo){
-                if(isset($activosFijos[$plantilla_id][$nro_activo])){
+            foreach ($get['ActivoFijo'] as $nro_activo => $activo) {
+                if (isset($activosFijos[$plantilla_id][$nro_activo])) {
                     $activoFijoModel = $activosFijos[$plantilla_id][$nro_activo];
                     // $activoFijoModel->loadDefaultValues();
                     $activoFijoModel->setAttributes($activo);
@@ -626,21 +629,21 @@ class ActivoFijoController extends BaseController
                     $activoFijoModel->fecha_adquisicion = $fecha_factura;
                     $activoFijoModel->costo_adquisicion = $costo_adquisicion;
                     $activoFijoModel->valor_fiscal_neto = $costo_adquisicion;
-                    $activoFijoModel->vida_util_fiscal = $activoFijoModel->vida_util_fiscal?? $activoFijoModel->activoFijoTipo->vida_util;
-                    $activoFijoModel->vida_util_contable = $activoFijoModel->vida_util_contable?? $activoFijoModel->activoFijoTipo->vida_util;
-                    $activoFijoModel->vida_util_restante = $activoFijoModel->vida_util_restante?? $activoFijoModel->activoFijoTipo->vida_util;
+                    $activoFijoModel->vida_util_fiscal = $activoFijoModel->vida_util_fiscal ?? $activoFijoModel->activoFijoTipo->vida_util;
+                    $activoFijoModel->vida_util_contable = $activoFijoModel->vida_util_contable ?? $activoFijoModel->activoFijoTipo->vida_util;
+                    $activoFijoModel->vida_util_restante = $activoFijoModel->vida_util_restante ?? $activoFijoModel->activoFijoTipo->vida_util;
                     $activoFijoModel->cuenta_id = PlantillaCompraventa::getFirstCuentaPrincipal($plantilla->id)->p_c_gravada_id;
                     $activoFijoModel->fecha_adquisicion = $fecha_factura;
                     $activosFijos[$plantilla_id][$nro_activo] = $activoFijoModel;
                 }
             }
-            foreach ($activosFijos[$plantilla_id] as $activoKey => $activoFijo){
-                
+            foreach ($activosFijos[$plantilla_id] as $activoKey => $activoFijo) {
+
                 //implementamos nuestro loadMultiple debido al que el de yii no soporta arrays multidimensionales
-                if (!isset($get['ActivoFijoAtributo'][$activoKey])){
+                if (!isset($get['ActivoFijoAtributo'][$activoKey])) {
                     continue;
                 }
-                foreach ($get['ActivoFijoAtributo'][$activoKey] as $atribKey => $_atributo){
+                foreach ($get['ActivoFijoAtributo'][$activoKey] as $atribKey => $_atributo) {
                     $atributoModel = new ActivoFijoAtributo();
                     $atributoModel->activo_fijo_tipo_id = $activoFijo->activo_fijo_tipo_id;
                     $atributoModel->atributo = $_atributo['atributo'];
@@ -650,15 +653,15 @@ class ActivoFijoController extends BaseController
             }
             Yii::$app->session->remove('activos_fijos_compra');
             Yii::$app->session->remove('activos_fijos_atributos_compra');
-            Yii::$app->session->set('activos_fijos_compra',$activosFijos);
-            Yii::$app->session->set('activos_fijos_atributos_compra',$activoFijoAtributo);
-            if($submit == true){
-                return true;    
+            Yii::$app->session->set('activos_fijos_compra', $activosFijos);
+            Yii::$app->session->set('activos_fijos_atributos_compra', $activoFijoAtributo);
+            if ($submit == true) {
+                return true;
             }
-           
-            //BOTON + genera muchos mas
-            
-            if($submit == false && $btn == 'nuevo'){
+
+            //BOTON +
+
+            if ($submit == false && $btn == 'nuevo') {
                 $activoNuevo = new ActivoFijo();
                 $activoNuevo->loadDefaultValues();
                 $activoNuevo->nombre = "";
@@ -668,25 +671,25 @@ class ActivoFijoController extends BaseController
                 // $activoNuevo->fecha_adquisicion = $fecha_factura;
                 $activoNuevo->costo_adquisicion = $costo_adquisicion;
                 $activoNuevo->valor_fiscal_neto = $costo_adquisicion;
-                $activoNuevo->vida_util_fiscal = $activoNuevo->vida_util_fiscal?? $activoNuevo->activoFijoTipo->vida_util;
-                $activoNuevo->vida_util_contable = $activoNuevo->vida_util_contable?? $activoNuevo->activoFijoTipo->vida_util;
-                $activoNuevo->vida_util_restante = $activoNuevo->vida_util_restante?? $activoNuevo->activoFijoTipo->vida_util;
+                $activoNuevo->vida_util_fiscal = $activoNuevo->vida_util_fiscal ?? $activoNuevo->activoFijoTipo->vida_util;
+                $activoNuevo->vida_util_contable = $activoNuevo->vida_util_contable ?? $activoNuevo->activoFijoTipo->vida_util;
+                $activoNuevo->vida_util_restante = $activoNuevo->vida_util_restante ?? $activoNuevo->activoFijoTipo->vida_util;
                 $activoNuevo->cuenta_id = PlantillaCompraventa::getFirstCuentaPrincipal($plantilla->id)->p_c_gravada_id;
                 $activosFijos[$plantilla_id][] = $activoNuevo;
                 Yii::$app->session->remove('activos_fijos_compra');
                 // Yii::$app->session->remove('activos_fijos_atributos_compra');
-                Yii::$app->session->set('activos_fijos_compra',$activosFijos);
+                Yii::$app->session->set('activos_fijos_compra', $activosFijos);
                 // Yii::$app->session->set('activos_fijos_atributos_compra',$activoFijoAtributo);
                 $agrego = true;
             }
-            // return true;
+            //return true;
         }
         //por alguna extraña razon agrega demas, con este codigo eliminamos los que sobran
-        if($agrego = true){
+        if ($agrego) {
             $eliminar = false;
-            foreach($activosFijos[$plantilla_id] as $activoKey => $activoFijo){
-                if($activoFijo->nombre == ""){
-                    if($eliminar == true){
+            foreach ($activosFijos[$plantilla_id] as $activoKey => $activoFijo) {
+                if ($activoFijo == $activoFijo) {
+                    if ($eliminar == true) {
                         unset($activosFijos[$plantilla_id][$activo_nro]);
                         // echo "<pre>";var_dump($activosFijos);exit;
                     }
@@ -694,15 +697,14 @@ class ActivoFijoController extends BaseController
                 }
             }
             Yii::$app->session->remove('activos_fijos_compra');
-            Yii::$app->session->set('activos_fijos_compra',$activosFijos);
-            
+            Yii::$app->session->set('activos_fijos_compra', $activosFijos);
         }
         retorno:;
         // echo "<pre>;</pre>var_dump($activosFijos);exit;
         return $this->renderAjax('create_compras', [
             'modelos' => $activosFijos[$plantilla_id],
-            'activoFijoAtributo'=>$activoFijoAtributo[$plantilla_id],
-            'plantilla_id'=>$plantilla_id,
+            'activoFijoAtributo' => $activoFijoAtributo[$plantilla_id],
+            'plantilla_id' => $plantilla_id,
         ]);
     }
 
@@ -711,20 +713,20 @@ class ActivoFijoController extends BaseController
 
 
 
-    public function actionManejarDesdeFacturaCompra_old($formodal,$plantilla_id, $costo_adquisicion = "", $fecha_factura = null, $submit = false, $actfijo_id = null, $quiere_crear_nuevo = 'no', $goto = "", $moneda_id = null, $tipo_id = null)
+    public function actionManejarDesdeFacturaCompra_old($formodal, $plantilla_id, $costo_adquisicion = "", $fecha_factura = null, $submit = false, $actfijo_id = null, $quiere_crear_nuevo = 'no', $goto = "", $moneda_id = null, $tipo_id = null)
     {
-        
+
         $model = new ActivoFijo();
         $model->loadDefaultValues();
 
         $plantilla = PlantillaCompraventa::findOne((int)$plantilla_id);
-    //    echo '<pre>'; var_dump ($plantilla->activo_fijo_tipo_id);echo '</pre>'; exit;
-       $model->activo_fijo_tipo_id = $plantilla->activo_fijo_tipo_id;
+        //    echo '<pre>'; var_dump ($plantilla->activo_fijo_tipo_id);echo '</pre>'; exit;
+        $model->activo_fijo_tipo_id = $plantilla->activo_fijo_tipo_id;
         if (isset($moneda_id)) {
             Yii::$app->session->set('cont_compra_actfijo_moneda_id', $moneda_id);
         }
         $tipo_id = $model->activo_fijo_tipo_id;
-        echo $tipo_id; 
+        echo $tipo_id;
         if (isset($tipo_id)) {
             $tipo_id = $model->activo_fijo_tipo_id;
             Yii::$app->session->set('cont_compra_actfijo_tipo_id', $tipo_id);
@@ -747,7 +749,7 @@ class ActivoFijoController extends BaseController
             $model->vida_util_contable = Yii::$app->request->get('vida_u_contable', '');
             $model->cantidad = Yii::$app->request->get('cantidad', '');
         }
-//        echo '<pre>'; var_dump ($model);echo '</pre>'; exit;
+        //        echo '<pre>'; var_dump ($model);echo '</pre>'; exit;
 
         $skey = "cont_actfijo_desde_factura";
         if (Yii::$app->session->has($skey)) {
@@ -759,7 +761,7 @@ class ActivoFijoController extends BaseController
 
         if ($goto == 'primera_vez') {
             Yii::$app->session->remove('cont_afijo_atributos');
-            if($plantilla->activo_fijo_tipo_id != null){
+            if ($plantilla->activo_fijo_tipo_id != null) {
                 $model->activo_fijo_tipo_id = $plantilla->activo_fijo_tipo_id;
             }
             if ($costo_adquisicion != '')
@@ -1351,7 +1353,7 @@ class ActivoFijoController extends BaseController
                 /** @var ActivoFijo[] $aFijos */
                 // obtener la hoja del excel en $sheetData
                 $banNombre = true;
-                if($model->tmp_limpiar_grupo == '1'){
+                if ($model->tmp_limpiar_grupo == '1') {
                     $actFijosPeriodo = ActivoFijo::find()->where(['empresa_periodo_contable_id' => Yii::$app->session->get('core_empresa_actual_pc')])->all();
                     foreach ($actFijosPeriodo as $actF) {
                         if (isset($actF->asiento))
@@ -1419,7 +1421,7 @@ class ActivoFijoController extends BaseController
                     'fecha_adqui' => 'D',
                     'valor_fiscal_neto' => 'E',
                     'vida_util_restante' => 'F',
-                    'moneda' => 'G',
+                    'cantidad' => 'G',
                     'depreciacion_acumulada' => 'H',
                     'valor_residual' => 'I',
                 ];
@@ -1430,95 +1432,97 @@ class ActivoFijoController extends BaseController
                 $cantActFijos = 0;
                 if ($banNombre) {
                     foreach ($sheetData as $rownro => $row) {
-                        if ($rownro == 1)
-                            continue;
-                        // Preprocesar fila
+                        for ($i = 1; $i <= ($row[$map['cantidad']]); $i++) {
+                            if ($rownro == 1)
+                                continue;
+                            // Preprocesar fila
 
-                        //Verificacion de la ultima fila vacia para termiinar de procesar las mismas
-                        if ($row[$map['nombre']] == "" and $row[$map['tipo']] == "" and $row[$map['costo_adqui']] == "")
-                            break; // hasta este punto llega la lista
+                            //Verificacion de la ultima fila vacia para termiinar de procesar las mismas
+                            if ($row[$map['nombre']] == "" and $row[$map['tipo']] == "" and $row[$map['costo_adqui']] == "")
+                                break; // hasta este punto llega la lista
 
-                        $preproc = self::preprocesarFila($mensajes, $row, $rownro, $map);
-                        if (!$preproc)
-                            continue;
-                        // Verificar tipo de activo fijo.
-                        $tipo_id = $row[$map['tipo']];
-                        $tipo = ActivoFijoTipo::find()->where(['id' => $tipo_id])->one();
-                        if (!isset($tipo)) {
-                            $mensajes[] = [
-                                'fila' => $rownro,
-                                'mensaje' => "Error en la fila {$rownro}: No existe tipo de activo fijo con ID = {$tipo_id}",
-                            ];
-                            continue;
-                        }
-                        $aFijo = new ActivoFijo();
-                        $aFijo->scenario = 'createFromFile';
-                        $aFijo->observacion = "creado el {$hoy} mediante importación desde excel";
-                        $aFijo->empresa_id = Yii::$app->session->get('core_empresa_actual');
-                        $aFijo->empresa_periodo_contable_id = Yii::$app->session->get('core_empresa_actual_pc');
-                        $aFijo->nombre = ucfirst($row[$map['nombre']]);
-                        $aFijo->activo_fijo_tipo_id = $tipo->id;
-                        $aFijo->costo_adquisicion = $row[$map['costo_adqui']];
-                        $aFijo->vida_util_fiscal = $tipo->vida_util;
-                        if (!strpos($row[$map['fecha_adqui']], '/')) {
-                            $phpDateFromExcel = PHPExcel_Shared_Date::ExcelToPHP($row[$map['fecha_adqui']]);
-                            $time = strtotime(date('Y-m-d H:i:s', $phpDateFromExcel));
-                            $diffTime = abs(date('Z', $phpDateFromExcel));
-                            $aFijo->fecha_adquisicion = date('Y-m-d', $time + $diffTime);
-                        } else {
-                            $array = explode('/', trim($row[$map['fecha_adqui']]));
-                            $aFijo->fecha_adquisicion = implode('-', [$array[2], $array[1], $array[0]]);
-                        }
-                        $aFijo->vida_util_restante = $row[$map['vida_util_restante']];
-                        if ($row[$map['vida_util_restante']] == null || $row[$map['vida_util_restante']] === "") {
-                            $array = explode('-', $aFijo->fecha_adquisicion);
-                            $pc = $periodoActual->anho;
-                            if ($array[0] == $pc || $array[0] == $pc - 1) {
-                                $aFijo->vida_util_restante = $tipo->vida_util;
-                            } else {
-                                $aFijo->vida_util_restante = $aFijo->vida_util_fiscal - ($pc - $array[0] - 1);
-                            }
-                            $aFijo->vida_util_restante = ($aFijo->vida_util_restante < 0) ? 0 : $aFijo->vida_util_restante;
-                        }
-                        $aFijo->valor_fiscal_neto = $row[$map['valor_fiscal_neto']];
-                        // $aFijo->valor_residual_neto = $row[$map['valor_residual_neto']];
-                        $aFijo->depreciacion_acumulada = round($row[$map['depreciacion_acumulada']], 0);
-                        $aFijo->valor_residual = round($row[$map['valor_residual']], 0);
-                        $aFijo->cuenta_id = $tipo->cuenta_id;
-                        $aFijo->cuenta_depreciacion_id = $tipo->cuenta_depreciacion_id;
-                        $aFijo->estado = 'activo';
-                        if (!$aFijo->validate()) {
-                            $msg = [];
-                            foreach ($aFijo->errors as $attrib => $error) {
-                                $error = is_array($error) ? array_shift($error) : $error;
-                                if ($attrib != 'moneda_id')
-                                    $msg[] = $error;
-                            }
-                            if (sizeof($msg) > 0) {
-                                $txt = implode(', ', $msg);
+                            $preproc = self::preprocesarFila($mensajes, $row, $rownro, $map);
+                            if (!$preproc)
+                                continue;
+                            // Verificar tipo de activo fijo.
+                            $tipo_id = $row[$map['tipo']];
+                            $tipo = ActivoFijoTipo::find()->where(['id' => $tipo_id])->one();
+                            if (!isset($tipo)) {
                                 $mensajes[] = [
                                     'fila' => $rownro,
-                                    'mensaje' => "Error validando activo fijo de la fila {$rownro}: {$txt}",
+                                    'mensaje' => "Error en la fila {$rownro}: No existe tipo de activo fijo con ID = {$tipo_id}",
                                 ];
                                 continue;
                             }
+                            $aFijo = new ActivoFijo();
+                            $aFijo->scenario = 'createFromFile';
+                            $aFijo->observacion = "creado el {$hoy} mediante importación desde excel";
+                            $aFijo->empresa_id = Yii::$app->session->get('core_empresa_actual');
+                            $aFijo->empresa_periodo_contable_id = Yii::$app->session->get('core_empresa_actual_pc');
+                            $aFijo->nombre = ucfirst($row[$map['nombre']]);
+                            $aFijo->activo_fijo_tipo_id = $tipo->id;
+                            $aFijo->costo_adquisicion = strval($row[$map['costo_adqui']] / ($row[$map['cantidad']]));
+                            $aFijo->vida_util_fiscal = $tipo->vida_util;
+                            if (!strpos($row[$map['fecha_adqui']], '/')) {
+                                $phpDateFromExcel = PHPExcel_Shared_Date::ExcelToPHP($row[$map['fecha_adqui']]);
+                                $time = strtotime(date('Y-m-d H:i:s', $phpDateFromExcel));
+                                $diffTime = abs(date('Z', $phpDateFromExcel));
+                                $aFijo->fecha_adquisicion = date('Y-m-d', $time + $diffTime);
+                            } else {
+                                $array = explode('/', trim($row[$map['fecha_adqui']]));
+                                $aFijo->fecha_adquisicion = implode('-', [$array[2], $array[1], $array[0]]);
+                            }
+                            $aFijo->vida_util_restante = $row[$map['vida_util_restante']];
+                            if ($row[$map['vida_util_restante']] == null || $row[$map['vida_util_restante']] === "") {
+                                $array = explode('-', $aFijo->fecha_adquisicion);
+                                $pc = $periodoActual->anho;
+                                if ($array[0] == $pc || $array[0] == $pc - 1) {
+                                    $aFijo->vida_util_restante = $tipo->vida_util;
+                                } else {
+                                    $aFijo->vida_util_restante = $aFijo->vida_util_fiscal - ($pc - $array[0] - 1);
+                                }
+                                $aFijo->vida_util_restante = ($aFijo->vida_util_restante < 0) ? 0 : $aFijo->vida_util_restante;
+                            }
+                            $aFijo->valor_fiscal_neto = $row[$map['valor_fiscal_neto']] / ($row[$map['cantidad']]);
+                            // $aFijo->valor_residual_neto = $row[$map['valor_residual_neto']];
+                            $aFijo->depreciacion_acumulada = strval(round($row[$map['depreciacion_acumulada']], 0) / ($row[$map['cantidad']]));
+                            $aFijo->valor_residual = strval(round($row[$map['valor_residual']], 0) / ($row[$map['cantidad']]));
+                            $aFijo->cuenta_id = $tipo->cuenta_id;
+                            $aFijo->cuenta_depreciacion_id = $tipo->cuenta_depreciacion_id;
+                            $aFijo->estado = 'activo';
+                            if (!$aFijo->validate()) {
+                                $msg = [];
+                                foreach ($aFijo->errors as $attrib => $error) {
+                                    $error = is_array($error) ? array_shift($error) : $error;
+                                    if ($attrib != 'moneda_id')
+                                        $msg[] = $error;
+                                }
+                                if (sizeof($msg) > 0) {
+                                    $txt = implode(', ', $msg);
+                                    $mensajes[] = [
+                                        'fila' => $rownro,
+                                        'mensaje' => "Error validando activo fijo de la fila {$rownro}: {$txt}",
+                                    ];
+                                    continue;
+                                }
+                            }
+                            if (!$aFijo->save(false)) {
+                                $txt = $aFijo->getErrorSummaryAsString();
+                                $mensajes[] = [
+                                    'fila' => $rownro,
+                                    'mensaje' => "Error guardando el activo fijo de la fila {$rownro}: {$txt}",
+                                ];
+                                // throw new \Exception("Error al guardar activo fijo {$aFijo->nombre}: {$aFijo->getErrorSummaryAsString()}");
+                            }
+                            $cantActFijos++;
+                            $aFijos[] = $aFijo;
                         }
-                        if (!$aFijo->save(false)) {
-                            $txt = $aFijo->getErrorSummaryAsString();
-                            $mensajes[] = [
-                                'fila' => $rownro,
-                                'mensaje' => "Error guardando el activo fijo de la fila {$rownro}: {$txt}",
-                            ];
-                            // throw new \Exception("Error al guardar activo fijo {$aFijo->nombre}: {$aFijo->getErrorSummaryAsString()}");
-                        }
-                        $cantActFijos++;
-                        $aFijos[] = $aFijo;
                     }
-                }
 
-                if (sizeof($mensajes)) {
-                    $sesion->set('errors_array', $mensajes);
-                    throw new \Exception("Hubieron errores.");
+                    if (sizeof($mensajes)) {
+                        $sesion->set('errors_array', $mensajes);
+                        throw new \Exception("Hubieron errores.");
+                    }
                 }
                 // foreach ($aFijos as $aFijo) {
                 //     if (!$aFijo->save(false)) {
@@ -1545,7 +1549,7 @@ class ActivoFijoController extends BaseController
 
                 $activos_fijos_creados = $aFijos;
             } catch (\Exception $e) {
-//                throw $e;
+                //                throw $e;
                 $transaction->rollBack();
                 FlashMessageHelpsers::createWarningMessage('El Activo Fijo no se puede borrar: ' . $e->getMessage() . '.');
             }
@@ -1553,6 +1557,176 @@ class ActivoFijoController extends BaseController
 
         retorno:;
         return $this->render('from-file/_form', ['model' => $model, 'activos_fijos_creados' => $activos_fijos_creados]);
+    }
+
+
+
+
+
+    /**
+     * Recupera de la BD los registros y devuelve el archivo .xlsx
+     * @return mixed
+     * @throws \PHPExcel_Exception
+     * @throws \PHPExcel_Reader_Exception
+     * @throws \PHPExcel_Writer_Exception
+     * @return Spreadsheet|null
+     * @throws \PhpOffice\PhpSpreadsheet\Exception
+ 
+     */
+    public function actionReporteActivoFijo()
+    {
+        $empresa_id = Yii::$app->session->get('core_empresa_actual');
+        //   $activosFijos = ActivoFijo::find()->where(['empresa_id' => Yii::$app->session->get('core_empresa_actual'), 'factura_venta_id' => null])->all();;
+        $sqlDb = "SELECT
+        nombre,
+        MAX( fecha_adquisicion ) AS fecha_adquisicion,
+        MAX( activo_fijo_tipo_id ) AS activo_fijo_tipo_id,
+        MAX( vida_util_restante ) AS vida_util_restante,
+        MAX( vida_util_fiscal ) AS vida_util_fiscal,
+        SUM( costo_adquisicion ) AS costo_adquisicion,
+        SUM( valor_fiscal_neto ) AS valor_fiscal_neto,
+        SUM( depreciacion_acumulada ) AS depreciacion_acumulada,
+        SUM( valor_residual ) AS valor_residual 
+    FROM
+        cont_activo_fijo 
+    WHERE
+        empresa_id = '{$empresa_id}'
+        AND factura_venta_id IS NULL 
+    GROUP BY
+        nombre;";
+        $query = Yii::$app->db->createCommand($sqlDb)->queryAll();
+        //Agrupamos por tipo de activo 
+        $activoAgrupado = [];
+        foreach ($query as  $_activo) {
+            if (!isset($activoAgrupado[$_activo['activo_fijo_tipo_id']])) {
+                $activoAgrupado[$_activo['activo_fijo_tipo_id']] = [];
+            }
+            $activoAgrupado[$_activo['activo_fijo_tipo_id']][] = $_activo;
+        }
+        $empresa = Empresa::findOne(\Yii::$app->session->get('core_empresa_actual'));
+        ini_set('memory_limit', '-1');
+        ini_set('max_execution_time', 300);
+        $objPHPExcel = IOFactory::load(dirname(__FILE__) . '/../views/activo-fijo/reporte/activo_fijo_template.xlsx');
+        if ($empresa->tipo == 'juridica') {
+            $razonSocial = $empresa->razon_social;
+        } else {
+            $razonSocial = $empresa->primer_apellido . ' ' . $empresa->segundo_apellido . ', ' . $empresa->primer_nombre . ' ' . $empresa->segundo_nombre;
+        }
+        $representante = $empresa->primer_apellido . ' ' . $empresa->segundo_apellido . ', ' . $empresa->primer_nombre . ' ' . $empresa->segundo_nombre;
+        $rucRepresentante = $empresa->cedula . '-' . $empresa->getDigitoVerificador($empresa->cedula);
+        $contador = $empresa->contador_primer_apellido . ' ' . $empresa->contador_segundo_apellido . ', ' . $empresa->contador_primer_nombre . ' ' . $empresa->contador_segundo_nombre;
+        $contadorRuc = $empresa->contador_ruc . '-' . $empresa->getDigitoVerificador($empresa->contador_ruc);
+        $ruc = $empresa->ruc . '-' . $empresa->digito_verificador;
+        $objPHPExcel->getActiveSheet()->setCellValueByColumnAndRow(1, 4, strtoupper($razonSocial));
+        $objPHPExcel->getActiveSheet()->setCellValueByColumnAndRow(6, 4, strtoupper($ruc));
+        $objPHPExcel->getActiveSheet()->setCellValueByColumnAndRow(2, 7, strtoupper($rucRepresentante));
+        $objPHPExcel->getActiveSheet()->setCellValueByColumnAndRow(1, 7, strtoupper($representante));
+        $objPHPExcel->getActiveSheet()->setCellValueByColumnAndRow(4, 7, strtoupper($contador));
+        $objPHPExcel->getActiveSheet()->setCellValueByColumnAndRow(6, 7, strtoupper($contadorRuc));
+        $fila = 10;
+        foreach ($activoAgrupado as $index => $_activoGrupo) {
+            $tipoActivoNombre = ActivoFijoTipo::findOne($index)->nombre;
+            $valorResidualTotal = 0;
+            $costoadquiTotal = 0;
+            $depreciacionAcumulTotal = 0;
+            $valorResidualFiscalTotal = 0;
+            $valorFiscalRevaluadoTotal = 0;
+            $cuotaFiscalDepreciacionAnualTotal = 0;
+            $valorFiscalNetoAlCierreTotal = 0;
+            $valorResidualContableTotal = 0;
+            $valorContableNetoTotal = 0;
+            $valorContableRevaluadoTotal = 0;
+            $cuotaContableDepreciacionAnualTotal = 0;
+            $cuotaContableNoReducibleTotal = 0;
+            $depreciacionContableAcumuladaTotal = 0;
+            $valorCuotaNetoAlCierreTotal = 0;
+            $fila++;
+            $objPHPExcel->getActiveSheet()->setCellValueByColumnAndRow(1, $fila, $tipoActivoNombre);
+            $objPHPExcel->getActiveSheet()->getStyle('B10:W' . $fila)->getNumberFormat()->setFormatCode('#,##0');
+            $objPHPExcel->getActiveSheet()->getStyle('A' . $fila)->getFont()->setBold(true);
+            foreach ($_activoGrupo as $registro) {
+                $tipoActivoFijo[$registro['activo_fijo_tipo_id']][] = $registro;
+                $fechaFormateada = DateTimeHelpers::fechaFormateada($registro['fecha_adquisicion'], 'd/m/Y');
+                $porcentajeValorResidual = ($registro['valor_residual'] / $registro['costo_adquisicion']) * 100;
+                $valorFiscalRevaluado = ($registro['valor_fiscal_neto'] - $registro['valor_residual']);
+                $añoVidaUtilRestante = $registro['vida_util_restante'] - 1;
+                $cuotaFiscalDepreciacionAnual =(($añoVidaUtilRestante + 1) == 0)  ?  0 : ($registro['valor_fiscal_neto']) / ($añoVidaUtilRestante + 1);
+                $valorFiscalNetoAlCierre = ($valorFiscalRevaluado + $registro['valor_residual']) - $cuotaFiscalDepreciacionAnual;
+                $cuotaDepreciacionAnualNoReducible = 0;
+                $fila++;
+                $objPHPExcel->getActiveSheet()->setCellValueByColumnAndRow(1, $fila, strtoupper($registro['nombre']));
+                $objPHPExcel->getActiveSheet()->setCellValueByColumnAndRow(2, $fila, $registro['costo_adquisicion']);
+                $objPHPExcel->getActiveSheet()->setCellValueByColumnAndRow(3, $fila, $fechaFormateada);
+                $objPHPExcel->getActiveSheet()->setCellValueByColumnAndRow(5, $fila, $porcentajeValorResidual);
+                $objPHPExcel->getActiveSheet()->setCellValueByColumnAndRow(6, $fila, $registro['valor_residual']);
+                $objPHPExcel->getActiveSheet()->setCellValueByColumnAndRow(7, $fila, $registro['vida_util_fiscal']);
+                $objPHPExcel->getActiveSheet()->setCellValueByColumnAndRow(8, $fila, $registro['vida_util_restante']);
+                $objPHPExcel->getActiveSheet()->setCellValueByColumnAndRow(9, $fila, $añoVidaUtilRestante);
+                $objPHPExcel->getActiveSheet()->setCellValueByColumnAndRow(10, $fila, $registro['valor_fiscal_neto']);
+                $objPHPExcel->getActiveSheet()->setCellValueByColumnAndRow(11, $fila, $valorFiscalRevaluado);
+                $objPHPExcel->getActiveSheet()->setCellValueByColumnAndRow(12, $fila, $cuotaFiscalDepreciacionAnual);
+                $objPHPExcel->getActiveSheet()->setCellValueByColumnAndRow(13, $fila, $registro['depreciacion_acumulada']);
+                $objPHPExcel->getActiveSheet()->setCellValueByColumnAndRow(14, $fila, $valorFiscalNetoAlCierre);
+                $objPHPExcel->getActiveSheet()->setCellValueByColumnAndRow(15, $fila, $registro['valor_residual']);
+                $objPHPExcel->getActiveSheet()->setCellValueByColumnAndRow(16, $fila, $registro['vida_util_fiscal']);
+                $objPHPExcel->getActiveSheet()->setCellValueByColumnAndRow(17, $fila, $añoVidaUtilRestante);
+                $objPHPExcel->getActiveSheet()->setCellValueByColumnAndRow(18, $fila, $registro['valor_fiscal_neto']);
+                $objPHPExcel->getActiveSheet()->setCellValueByColumnAndRow(19, $fila, $valorFiscalRevaluado);
+                $objPHPExcel->getActiveSheet()->setCellValueByColumnAndRow(20, $fila, $cuotaFiscalDepreciacionAnual);
+                $objPHPExcel->getActiveSheet()->setCellValueByColumnAndRow(21, $fila, $cuotaDepreciacionAnualNoReducible);
+                $objPHPExcel->getActiveSheet()->setCellValueByColumnAndRow(22, $fila, $registro['depreciacion_acumulada']);
+                $objPHPExcel->getActiveSheet()->setCellValueByColumnAndRow(23, $fila, $valorFiscalNetoAlCierre);
+                $costoadquiTotal += $registro['costo_adquisicion'];
+                $valorResidualTotal += $registro['valor_residual'];
+                $depreciacionAcumulTotal += $registro['depreciacion_acumulada'];
+                $valorResidualFiscalTotal += $registro['valor_fiscal_neto'];
+                $valorFiscalRevaluadoTotal += $valorFiscalRevaluado;
+                $cuotaFiscalDepreciacionAnualTotal += $cuotaFiscalDepreciacionAnual;
+                $valorFiscalNetoAlCierreTotal += $valorFiscalNetoAlCierre;
+                $valorResidualContableTotal += $registro['valor_residual'];
+                $valorContableNetoTotal += $registro['valor_fiscal_neto'];
+                $valorContableRevaluadoTotal += $valorFiscalRevaluado;
+                $cuotaContableDepreciacionAnualTotal += $cuotaFiscalDepreciacionAnual;
+                $cuotaContableNoReducibleTotal += $cuotaDepreciacionAnualNoReducible;
+                $depreciacionContableAcumuladaTotal += $registro['depreciacion_acumulada'];
+                $valorCuotaNetoAlCierreTotal += $valorFiscalNetoAlCierre;
+            }
+            $fila++;
+            $objPHPExcel->getActiveSheet()->setCellValueByColumnAndRow(2, $fila, $costoadquiTotal);
+            $objPHPExcel->getActiveSheet()->setCellValueByColumnAndRow(6, $fila, $valorResidualTotal);
+            $objPHPExcel->getActiveSheet()->setCellValueByColumnAndRow(10, $fila, $valorResidualFiscalTotal);
+            $objPHPExcel->getActiveSheet()->setCellValueByColumnAndRow(11, $fila, $valorFiscalRevaluadoTotal);
+            $objPHPExcel->getActiveSheet()->setCellValueByColumnAndRow(12, $fila, $cuotaFiscalDepreciacionAnualTotal);
+            $objPHPExcel->getActiveSheet()->setCellValueByColumnAndRow(13, $fila, $depreciacionAcumulTotal);
+            $objPHPExcel->getActiveSheet()->setCellValueByColumnAndRow(14, $fila, $valorFiscalNetoAlCierreTotal);
+            $objPHPExcel->getActiveSheet()->setCellValueByColumnAndRow(15, $fila, $valorResidualContableTotal);
+            $objPHPExcel->getActiveSheet()->setCellValueByColumnAndRow(18, $fila, $valorContableNetoTotal);
+            $objPHPExcel->getActiveSheet()->setCellValueByColumnAndRow(19, $fila, $valorContableRevaluadoTotal);
+            $objPHPExcel->getActiveSheet()->setCellValueByColumnAndRow(20, $fila, $cuotaContableDepreciacionAnualTotal);
+            $objPHPExcel->getActiveSheet()->setCellValueByColumnAndRow(21, $fila,  $cuotaContableNoReducibleTotal);
+            $objPHPExcel->getActiveSheet()->setCellValueByColumnAndRow(22, $fila, $depreciacionContableAcumuladaTotal);
+            $objPHPExcel->getActiveSheet()->setCellValueByColumnAndRow(23, $fila,  $valorCuotaNetoAlCierreTotal);
+            // $objPHPExcel->getActiveSheet()->setCellValueByColumnAndRow(1, $fila, $tipoActivoNombre);
+            $objPHPExcel->getActiveSheet()->setCellValueByColumnAndRow(1, $fila, strtoupper('TOTAL'));
+            $objPHPExcel->getActiveSheet()->getStyle('B10:W' . $fila)->getNumberFormat()->setFormatCode('#,##0');
+            $objPHPExcel->getActiveSheet()->getStyle('A' . $fila . ':W' . $fila)->getFont()->setBold(true);
+        }
+        $objWriter = IOFactory::createWriter($objPHPExcel, 'Xlsx');
+        $pFilename = tempnam(sys_get_temp_dir(), 'phpxltmp') . ".xlsx";
+        $objWriter->save($pFilename);
+        header('Content-Description: File Transfer');
+        header('Content-Type: application/octet-stream');
+        header('Content-Disposition: attachment; filename=' . "reporte_activo_fijo.xlsx");
+        header('Content-Transfer-Encoding: binary');
+        header('Expires: 0');
+        header('Cache-Control: must-revalidate, post-check=0, pre-check=0');
+        header('Pragma: public');
+        header('Content-Length: ' . filesize($pFilename));
+        ob_clean();
+        flush();
+        readfile($pFilename);
+        unlink($pFilename);
+        exit;
     }
 
     private function preprocesarFila(&$mensajes, $row, $rownro, $map)
@@ -1593,10 +1767,10 @@ class ActivoFijoController extends BaseController
             ];
             $sinErrores = false;
         }
-        if (!isset($row[$map['moneda']]) || $row[$map['moneda']] === "") {
+        if (!isset($row[$map['cantidad']]) || $row[$map['cantidad']] === "") {
             $mensajes[] = [
                 'fila' => $rownro,
-                'mensaje' => "Error en la fila {$rownro}: La moneda está vacía.",
+                'mensaje' => "Error en la fila {$rownro}: La cantidad está vacía.",
             ];
             $sinErrores = false;
         }
@@ -1869,46 +2043,46 @@ class ActivoFijoController extends BaseController
         ]);
     }
 
-    
-    public static function cargarAtributo($id_activo = null){
-        
-        if($id_activo == null) return null;
-        
-        // var_dump ($id_activo); exit;
-            $sesion = Yii::$app->session;
-            $model = ActivoFijo::find()->where(["id"=>$id_activo])->one();
-            // $model = self::findModel($id_activo);
-            // var_dump($id_activo);exit;
-            // var_dump($model->id);exit;
-            // Cargar atributos
-            /** @var  $_atributos ActivoFijoTipoAtributo[] */
-            $atributos = ActivoFijoAtributo::find()->where(['activo_fijo_id' => $id_activo])->all();
-            // var_dump($atributos);exit;
-            $atribs_re = ActivoFijoAtributo::find()->where(['activo_fijo_id' => $id_activo])->all(); // atributos a renderizar en la vista.
-            $_atributos = ActivoFijoTipoAtributo::find()->where(['activo_fijo_tipo_id' => $model->activo_fijo_tipo_id])->all();
 
-            // Agregar atributos nuevos provenientes del tipo, que no estuvieron al crear el activo fijo.
-            foreach ($_atributos as $_atributo) {
-                $hay = false;
-                foreach ($atributos as $atributo) {
-                    if ($atributo->atributo == $_atributo->atributo) {
-                        $hay = true;
-                        break;
-                    }
-                }
-                if (!$hay) {
-                    $_newAtributo = new ActivoFijoAtributo();
-                    $_newAtributo->loadEmpresaPeriodo();
-                    $_newAtributo->atributo = $_atributo->atributo;
-                    $_newAtributo->valor = '';
-                    $atribs_re[] = $_newAtributo;
+    public static function cargarAtributo($id_activo = null)
+    {
+
+        if ($id_activo == null) return null;
+
+        // var_dump ($id_activo); exit;
+        $sesion = Yii::$app->session;
+        $model = ActivoFijo::find()->where(["id" => $id_activo])->one();
+        // $model = self::findModel($id_activo);
+        // var_dump($id_activo);exit;
+        // var_dump($model->id);exit;
+        // Cargar atributos
+        /** @var  $_atributos ActivoFijoTipoAtributo[] */
+        $atributos = ActivoFijoAtributo::find()->where(['activo_fijo_id' => $id_activo])->all();
+        // var_dump($atributos);exit;
+        $atribs_re = ActivoFijoAtributo::find()->where(['activo_fijo_id' => $id_activo])->all(); // atributos a renderizar en la vista.
+        $_atributos = ActivoFijoTipoAtributo::find()->where(['activo_fijo_tipo_id' => $model->activo_fijo_tipo_id])->all();
+
+        // Agregar atributos nuevos provenientes del tipo, que no estuvieron al crear el activo fijo.
+        foreach ($_atributos as $_atributo) {
+            $hay = false;
+            foreach ($atributos as $atributo) {
+                if ($atributo->atributo == $_atributo->atributo) {
+                    $hay = true;
+                    break;
                 }
             }
-            $sesion->set('cont_afijo_atributos', ['tipo_id' => $model->activo_fijo_tipo_id, 'atributos' => $atribs_re]);
-            // print_r($sesion->get('cont_afijo_atributos')); 
-            //FIN Cargar atributo
+            if (!$hay) {
+                $_newAtributo = new ActivoFijoAtributo();
+                $_newAtributo->loadEmpresaPeriodo();
+                $_newAtributo->atributo = $_atributo->atributo;
+                $_newAtributo->valor = '';
+                $atribs_re[] = $_newAtributo;
+            }
+        }
+        $sesion->set('cont_afijo_atributos', ['tipo_id' => $model->activo_fijo_tipo_id, 'atributos' => $atribs_re]);
+        // print_r($sesion->get('cont_afijo_atributos')); 
+        //FIN Cargar atributo
     }
-
 }
 
 /**
@@ -1935,7 +2109,7 @@ class Archivo extends Model
         return [
             [['archivo', 'reemplazar', 'crear_tipo'], 'required'],
             [['archivo', 'reemplazar', 'crear_tipo'], 'safe'],
-            [['fecha','tmp_limpiar_grupo'], 'safe'],
+            [['fecha', 'tmp_limpiar_grupo'], 'safe'],
             [['fecha'], 'required'],
             ['archivo', 'file', 'extensions' => ['xlsx', 'xls'], 'skipOnEmpty' => false, 'maxSize' => 1024 * 1024],
             [['nombreArchivo'], 'match', 'pattern' => '/^\d+-\d{1}_\d{6}']
@@ -1963,16 +2137,16 @@ class Archivo extends Model
         }
     }
 
-//    function calculoVidaRestante($fechaAquisicion, $vidaUtilRestante, $tipo): int
-//    {
-//        if ($vidaUtilRestante == null || $vidaUtilRestante === "") {
-//            $array = explode('-', trim($fechaAquisicion));
-//            $pc = Yii::$app->session->get('core_empresa_actual_pc');
-//            if ($array[0] == $pc || $array[0] + 1 == $pc) {
-//                return $tipo->vida_util;
-//            }
-//            return ($pc - $array[0] - 1);
-//        }
-//        return $vidaUtilRestante;
-//    }
+    //    function calculoVidaRestante($fechaAquisicion, $vidaUtilRestante, $tipo): int
+    //    {
+    //        if ($vidaUtilRestante == null || $vidaUtilRestante === "") {
+    //            $array = explode('-', trim($fechaAquisicion));
+    //            $pc = Yii::$app->session->get('core_empresa_actual_pc');
+    //            if ($array[0] == $pc || $array[0] + 1 == $pc) {
+    //                return $tipo->vida_util;
+    //            }
+    //            return ($pc - $array[0] - 1);
+    //        }
+    //        return $vidaUtilRestante;
+    //    }
 }

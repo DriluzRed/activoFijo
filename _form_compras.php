@@ -317,13 +317,13 @@ $("#actfijo-modal-form").on("beforeSubmit", function (e) {
         )
         .done(function (data) {
             $('.modal-body', modal).html("");
-            $('.modal-body', modal).html(data);
+            $('.modal-body', modal).html(form);
             $("#actfijo-modal-form").attr('action', original);
             $('#modal').trigger('change');
         });
         return false;
     }
-    else{
+/*     else{
         // alert("nuevo");
         // alert(form.attr("action"));
         $.get(
@@ -336,7 +336,7 @@ $("#actfijo-modal-form").on("beforeSubmit", function (e) {
             $('#modal').trigger('change');
         });
         return false;
-    }
+    } */
 }).on("submit", function (e) {
     e.preventDefault();
     e.stopImmediatePropagation();
