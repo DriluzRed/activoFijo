@@ -682,13 +682,13 @@ class ActivoFijoController extends BaseController
                 // Yii::$app->session->set('activos_fijos_atributos_compra',$activoFijoAtributo);
                 $agrego = true;
             }
-            //return true;
+            // return true;
         }
         //por alguna extraña razon agrega demas, con este codigo eliminamos los que sobran
         if ($agrego) {
             $eliminar = false;
             foreach ($activosFijos[$plantilla_id] as $activoKey => $activoFijo) {
-                if ($activoFijo == $activoFijo) {
+                if ($activoFijo->nombre == "") {
                     if ($eliminar == true) {
                         unset($activosFijos[$plantilla_id][$activo_nro]);
                         // echo "<pre>";var_dump($activosFijos);exit;
